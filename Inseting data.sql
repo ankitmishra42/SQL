@@ -67,7 +67,8 @@ VALUES (1,'Public Accountant',4200.00,9000.00),
     (16,'Sales Representative',6000.00,12000.00),
     (17,'Shipping Clerk',2500.00,5500.00),
     (18,'Stock Clerk',2000.00,5000.00),
-    (19,'Stock Manager',5500.00,8500.00);
+    (19,'Stock Manager',5500.00,8500.00),
+	(20,'Data Scientist',95500.00,258500.00);
 
 
 /*Data for the table departments */
@@ -212,3 +213,4 @@ VALUES
     (206, 7400.00);
 
 delete from prev_salaries where true;
+
