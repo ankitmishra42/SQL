@@ -2,9 +2,9 @@
 --Easy Questions:
 
 --1.	Write a SQL query to find those employees whose salaries are less than 6000. Return full name (first and last name) and salary.
-select concat(e.first_name, ' ', e.last_name) full_name, e.salary 
+select e.first_name||' '||e.last_name full_name, e.salary 
 from employees e
-where e.salary <6000;
+where e.salary < 6000;
 
 
 --2.	Write a SQL query to find those employees whose last name ends with "a". Return first name, last name, and department ID.
@@ -51,46 +51,41 @@ where e.hire_date > '01/01/1995';
 --6.	Write a SQL query to find those employees who work under a manager. Return full name (first and last name), salary, and manager ID.
 select concat(e.first_name, e.last_name) full_name, e.salary, e.manager_id 
 from employees e
-where e.manager_id is not null;
+where e.manager_id IS NOT NULL;
 
 
---7.	Write a SQL query to calculate the average salary for each department. Return the department name and the average salary..
-select d.department_name, round(avg(e.salary)) average_salary
+--7.	Write a SQL query to calculate the average salary for each department. Return the department name and the average salary.
+select d.department_name, round(AVG(e.salary)) average_salary
 from employees e
 join departments d on e.department_id = d.department_id
-join locations l on d.location_id = l.location_id
-group by d.department_name
+group by department_name
 order by average_salary desc, d.department_name;
 
 
 --8.	Write a SQL query to find all jobs that currently have no employees assigned to them. Display the job title and the minimum and maximum salary for each job.
-select j.job_title, min(e.salary) min_salary, max(e.salary) max_salary
+select j.job_title, j.min_salary, j.max_salary
 from employees e
 right join jobs j on e.job_id = j.job_id
-group by j.job_title, e.job_id
-having e.job_id is null
-order by j.job_title;
+where e.job_id is null;
 
 
 
---9.	Write a SQL query to find the 2nd highest salary from each city. Return the city name, employee's full name, and salary.
-select city, full_name, second_highst_salarys from 
-	(select l.city, concat(e.first_name, ' ', e.last_name) full_name, e.salary as second_highst_salarys,
-		dense_rank() over (partition by l.city order by e.salary desc) salarys
-	from employees e
-	join departments d on e.department_id = d.department_id
-	join locations l on d.location_id = l.location_id)
-where salarys = 2;
-
-
-
---10.	Write a SQL query to rank employees within each department by their salary. Return the department name, employee's full name, and their rank.
-
-(select d.department_name, concat(e.first_name, ' ', e.last_name) full_name,
-	dense_rank() over (partition by l.city order by e.salary desc) salarys
+--9.	Write a SQL query to rank employees within each department by their salary. Return the department name, employee's full name, and their rank.
+select d.department_name, e.first_name || ' ' || e.last_name as full_name, 
+	dense_rank() over (partition by d.department_id order by e.salary desc) rank
 from employees e
 join departments d on e.department_id = d.department_id
-join locations l on d.location_id = l.location_id);
+order by rank;
+
+
+
+--10.	Write a SQL query to find the 2nd highest salary from each city. Return the city name, employee's full name, and salary.
+select e2.city, e2.full_name, e2.salary as second_highst_salarys from (select l.city, concat(e.first_name, ' ', e.last_name) full_name, e.salary, dense_rank() over (partition by l.city order by e.salary desc) rank_salarys 
+	from employees e 
+	join departments d on d.department_id = e.department_id
+	join locations l on l.location_id = d.location_id) e2
+where e2.rank_salarys = 2
+order by second_highst_salarys desc;
 
 
 
@@ -107,18 +102,27 @@ join locations l on d.location_id = l.location_id);
 
 --11.	Write a SQL query to find the top 3 highest salaries in each department. Return the department name, employee's full name, and salary.
 create or replace view temp_table as
-select d.department_name, concat(first_name,' ', last_name) full_name, e.salary,
-rank() over (partition by d.department_name order by e.salary desc) top_salaries_in_each_dep
-from employees e 
-left join departments d on e.department_id = d.department_id;
+	select d.department_name, concat(e.first_name, ' ', e.last_name) full_name, e.salary, 
+		dense_rank() over (partition by d.department_id order by e.salary desc) salaries_rank
+	from employees e
+	join departments d on e.department_id = d.department_id;
 
-select department_name, full_name, salary from temp_table
-where top_salaries_in_each_dep <= 3
+
+select e2.department_name, e2.full_name, e2.salary from temp_table e2
+where e2.salaries_rank >= 3
 order by department_name, salary desc;
 
 
 
 --12.	Write a SQL query to calculate the year-over-year salary growth for each employee based on their hire date. Return the employee's full name, hire date, salary, next year's salary, and the growth percentage.
+(select concat(e.first_name, ' ', e.last_name) full_name, e.hire_date, e.salary, round((((e.salary - pvs.salary) / pvs.salary)*e.salary)+e.salary, 0) next_year_salary, round(((e.salary-pvs.salary)*100)/e.salary, 2) growth_percentage
+from employees e
+join prev_salaries pvs on e.employee_id  = pvs.employee_id
+where pvs.salary is not null 
+order by full_name);
+
+--OR
+
 with SalaryData as (
     select e.employee_id, e.first_name || ' ' || e.last_name AS full_name, e.hire_date, ps.salary as prev_salary, e.salary as current_salary
     from employees e
@@ -141,39 +145,37 @@ order by full_name;
 
 
 
+
 --13.	Write a SQL query to find employees whose salary is less than the average salary of their respective department. Return the employee's full name, department name, and their salary.
-select department_name, full_name, salary
+select e2.department_name, e2.full_name, e2.salary
 from
 	(select d.department_name, concat(first_name,' ', last_name) full_name, e.salary,
 		avg(e.salary) over (partition by d.department_name) avg_salary
 	from employees e 
-	left join departments d on e.department_id = d.department_id)
-where salary < avg_salary
-order by department_name;
+	left join departments d on e.department_id = d.department_id) e2
+where e2.salary < e2.avg_salary
+order by e2.department_name;
 	
 
 
 --14.	Write a SQL query to generate a report that lists employees who have a salary higher than the previous employee's salary when ordered by department and salary. Return the employee's full name, their department, and the salary difference.
-select emp_full_name, department_name, salary - prev_salary as salary_difference 
-from 	
-	(select concat(first_name,' ',last_name) emp_full_name, department_name, e.salary, 
-		lag(e.salary,1,0) over (order by e.salary) as prev_salary
-	from employees e 
-	left join departments d on e.department_id = d.department_id
-	order by d.department_name, e.salary )
-where salary > prev_salary;
+select e2.full_name, e2.department_name, e2.salary - e2.prev_salary as salary_difference 
+from (
+	select concat(e.first_name, ' ', e.last_name) full_name, d.department_name, e.salary, 
+		lag(e.salary,1,0) over (partition by department_name order by e.salary) as prev_salary
+	from employees e
+	join departments d on e.department_id = d.department_id) e2
+where e2.salary > e2.prev_salary;
 
 
 
 --15.	Write a SQL query to calculate the overall company average salary and then find departments where the average salary is above this overall average. Return the department name and the average salary.
-select department_name, avg_salary_by_dept
-from
+select * from
 	(select distinct(d.department_name),
-		round(avg(e.salary) over (partition by d.department_name)) avg_salary_by_dept
+		round(avg(e.salary) over (partition by d.department_name), 1) avg_salary_of_dept
 	from employees e 
-	left join departments d on e.department_id = d.department_id)
-where avg_salary_by_dept > (select avg(e.salary) overall_avg_salary from employees e)
-order by department_name;
+	left join departments d on e.department_id = d.department_id) e2
+where avg_salary_of_dept > (select avg(e.salary) overall_avg_salary from employees e);
 	
 
 
@@ -209,8 +211,7 @@ order by d.department_name, salary;
 
 
 --19.	Write a SQL query to find employees who have dependents with the same first name as the employee. Return the employee's full name and the dependent's full name.
-select e.employee_id as employees_emp_id, concat(e.first_name,' ', e.first_name) as employees_full_name, 
-	d.employee_id as dependents_emp_id, concat(d.first_name,' ', d.first_name) as dependents_full_name
+select concat(e.first_name,' ', e.first_name) as employees_full_name, concat(d.first_name,' ', d.first_name) as dependents_full_name
 from employees e
 join dependents d on e.first_name = d.first_name
 
@@ -219,22 +220,20 @@ join dependents d on e.first_name = d.first_name
 --20.	Write a SQL query to find the department with the maximum total salary. Return the department name and total salary.
 --FRIST APPROACH
 create or replace view dep_total_salary as 
-select distinct(d.department_name),
-	sum(e.salary) over (partition by d.department_name) as total_salary_each_dept
-from employees e 
-left join departments d on e.department_id = d.department_id;
+	(select d.department_name, sum(e.salary) total_salary_by_department from employees e
+	left join departments d on e.department_id = d.department_id
+	group by d.department_name);
 	
-select department_name, total_salary_each_dept as max_salary
+select department_name, total_salary_by_department as max_salary
 from dep_total_salary
-where total_salary_each_dept = (select max(total_salary_each_dept) from dep_total_salary);
+where total_salary_by_department = (select max(total_salary_by_department) from dep_total_salary);
 
 
 --SECOND OPPROACH
-select d.department_name,
-	sum(e.salary) over (partition by d.department_name) as total_salary_each_dept
-from employees e 
+select d.department_name, sum(e.salary) total_salary_by_department from employees e
 left join departments d on e.department_id = d.department_id
-order by e.salary desc
+group by d.department_name
+order by total_salary_by_department desc
 limit 1;
 
 
